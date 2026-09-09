@@ -7,6 +7,9 @@ OpenStreetMap.
 
 ![Aperçu](docs/capture.png)
 
+![Aperçu](docs/capture-jp.png)
+
+
 Gratuit, sans clé d'API, **sans aucune dépendance** : Python 3 et sa
 bibliothèque standard suffisent. Le fichier HTML produit s'ouvre dans n'importe
 quel navigateur et se partage tel quel.
