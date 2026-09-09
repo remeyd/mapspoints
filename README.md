@@ -7,7 +7,7 @@ OpenStreetMap.
 
 ![Aperçu](docs/capture.png)
 
-![Aperçu](docs/capture-jp.png)
+![Aperçu](docs/Capture-jp.png)
 
 
 Gratuit, sans clé d'API, **sans aucune dépendance** : Python 3 et sa
