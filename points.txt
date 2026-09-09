@@ -1,0 +1,13 @@
+# Un lieu par ligne.  Champs optionnels séparés par « | » :
+#     Nom du lieu | date | note | requête de géocodage plus précise
+# Coordonnées imposées (aucun géocodage) :  Nom du lieu @48.0399,-4.7367
+# Les lignes vides et celles commençant par # sont ignorées.
+
+Quimper | 2026-07-12 | Arrivée, nuit en centre-ville
+Locronan | 2026-07-13 | Village de pierre, très touristique l'après-midi
+Pointe du Raz | 2026-07-14 | Coucher de soleil
+Camaret-sur-Mer | 2026-07-15 | Tour Vauban
+Pointe de Pen-Hir | 2026-07-15 | Falaises, sentier des douaniers
+Brest | 2026-07-16 | Océanopolis
+Île de Batz | 2026-07-17 | Bateau depuis Roscoff | Ile de Batz, Finistère
+Saint-Malo | 2026-07-18 | Remparts au lever du jour

@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+
+# caches locaux, regénérés automatiquement
+cache_geocodage.json
+cache_routes.json
+
+# cartes et exports produits (le gabarit, lui, est versionné)
+/*.html
+!gabarit.html
+*.gpx
+*.geojson
+
+# fichiers de verrouillage LibreOffice
+.~lock.*#
+
+# itinéraires personnels
+japon25.csv
+japon25_prepare.csv

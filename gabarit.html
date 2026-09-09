@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carte de voyage</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --bg:#f7f6f3; --panneau:#ffffff; --texte:#1c1b19; --doux:#6b6862;
+    --trait:#e2ded6; --accent:#c1440e; --accent-doux:#f3e2d9;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       color:var(--texte);background:var(--bg);display:flex;overflow:hidden}
+
+  /* ---- panneau latéral ---- */
+  #panneau{width:310px;flex:none;background:var(--panneau);border-right:1px solid var(--trait);
+           display:flex;flex-direction:column;z-index:1200}
+  #entete{padding:16px 18px 12px;border-bottom:1px solid var(--trait)}
+  #entete h1{margin:0 0 4px;font-size:17px;font-weight:650;letter-spacing:-.01em}
+  #resume{color:var(--doux);font-size:12.5px}
+  #legende{margin-top:9px}
+  #barre{height:6px;border-radius:3px}
+  #bornes{display:flex;justify-content:space-between;color:var(--doux);
+          font-size:11px;margin-top:2px}
+  #liste{overflow-y:auto;flex:1;padding:6px 0}
+  .etape{display:flex;gap:11px;padding:9px 18px;cursor:pointer;border-left:3px solid transparent}
+  .etape:hover{background:#faf8f5}
+  .etape.active{background:var(--accent-doux);border-left-color:var(--accent)}
+  .puce{flex:none;width:23px;height:23px;border-radius:50%;background:var(--accent);color:#fff;
+        font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .etape.doute .puce{background:#8a8580}
+  .nom{font-weight:550;line-height:1.35}
+  .meta{color:var(--doux);font-size:12px;margin-top:1px}
+  .segment{display:flex;align-items:center;gap:7px;color:var(--doux);
+           font-size:11.5px;padding:1px 18px 1px 29px;line-height:1.2}
+  .segment::before{content:"";width:1px;height:15px;background:var(--trait);
+                   margin-left:5px;flex:none}
+  #pied{padding:9px 18px;border-top:1px solid var(--trait);color:var(--doux);font-size:11.5px}
+  #pied a{color:var(--doux)}
+
+  /* ---- carte ---- */
+  #carte{flex:1;height:100%}
+  .leaflet-container{background:#dcd8d0;font:inherit}
+
+  .marqueur{background:var(--accent);color:#fff;border:2px solid #fff;border-radius:50% 50% 50% 4px;
+            transform:rotate(-45deg);width:100%;height:100%;display:flex;align-items:center;
+            justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .marqueur span{transform:rotate(45deg);font-weight:700;font-size:12.5px}
+  /* en dessous d'une certaine taille, la goutte numérotée devient une pastille */
+  .marqueur.pastille{border-radius:50%;transform:none;border-width:1.5px;
+                     box-shadow:0 1px 3px rgba(0,0,0,.45)}
+  .marqueur.doute{background:#8a8580 !important}
+  .marqueur.actif{background:#0b6e4f !important;z-index:9999}
+
+  .leaflet-popup-content{margin:12px 14px;min-width:180px}
+  .popup-titre{font-size:15px;font-weight:650;margin-bottom:3px}
+  .popup-meta{color:var(--doux);font-size:12px}
+  .popup-note{margin-top:7px}
+  .popup-liens{margin-top:9px;border-top:1px solid var(--trait);padding-top:7px;font-size:12px}
+  .popup-liens a{margin-right:10px;color:var(--accent)}
+
+  .bouton-carte{background:#fff;width:32px;height:32px;border:2px solid rgba(0,0,0,.2);
+                border-radius:4px;cursor:pointer;font-size:16px;line-height:30px;text-align:center;
+                display:block;color:#333}
+  .bouton-carte:hover{background:#f4f4f4}
+
+  /* panneau de réglages d'affichage */
+  #reglages{position:absolute;top:10px;right:52px;z-index:1250;background:var(--panneau);
+            border:1px solid var(--trait);border-radius:6px;padding:12px 14px;width:225px;
+            box-shadow:0 4px 16px rgba(0,0,0,.18);display:none}
+  #reglages.ouvert{display:block}
+  #reglages h2{margin:0 0 9px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;
+               color:var(--doux);font-weight:600}
+  #reglages label{display:block;margin:9px 0 2px;font-size:12px;color:var(--doux)}
+  #reglages input[type=range]{width:100%;margin:0;accent-color:var(--accent)}
+  #reglages .valeur{float:right;color:var(--texte);font-variant-numeric:tabular-nums}
+  .teintes{display:flex;gap:6px;margin-top:3px}
+  .teinte{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+  .teinte.choisie{border-color:var(--texte)}
+  .bornes-degrade{display:flex;align-items:center;gap:7px;margin:5px 0 0 24px;
+                  color:var(--doux);font-size:12px}
+  .bornes-degrade input{width:42px;height:22px;padding:0;border:1px solid var(--trait);
+                        border-radius:4px;background:none;cursor:pointer}
+  .bascule{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:12.5px;cursor:pointer}
+  .bascule input{accent-color:var(--accent);margin:0}
+  #reinit{margin-top:11px;font-size:12px;color:var(--doux);background:none;border:0;
+          padding:0;cursor:pointer;text-decoration:underline}
+
+  #basculer{display:none;position:absolute;top:10px;left:10px;z-index:1300}
+  @media (max-width:760px){
+    body{flex-direction:column}
+    #panneau{position:absolute;inset:0 auto 0 0;width:280px;transform:translateX(-100%);
+             transition:transform .2s;box-shadow:0 0 20px rgba(0,0,0,.2)}
+    #panneau.ouvert{transform:none}
+    #carte{width:100%}
+    #basculer{display:block}
+  }
+</style>
+</head>
+<body>
+
+<div id="panneau">
+  <div id="entete">
+    <h1 id="titre"></h1>
+    <div id="resume"></div>
+    <div id="legende" hidden>
+      <div id="barre"></div>
+      <div id="bornes"><span>Départ</span><span>Arrivée</span></div>
+    </div>
+  </div>
+  <div id="liste"></div>
+  <div id="pied">Fonds : © IGN · © GSI Japon · © OpenStreetMap · © Esri</div>
+</div>
+
+<button id="basculer" class="bouton-carte" title="Liste des étapes">☰</button>
+
+<div id="reglages">
+  <h2>Affichage</h2>
+  <label>Marqueurs <span class="valeur" id="v-taille"></span></label>
+  <input type="range" id="r-taille" min="0" max="40" step="2">
+  <div class="bascule"><input type="checkbox" id="r-auto">
+    <label for="r-auto" style="margin:0">Taille suivant le zoom</label></div>
+  <label>Épaisseur du trait <span class="valeur" id="v-epaisseur"></span></label>
+  <input type="range" id="r-epaisseur" min="0" max="10" step="1">
+  <label>Couleur</label>
+  <div class="teintes" id="r-couleurs"></div>
+  <div class="bascule"><input type="checkbox" id="r-pointille">
+    <label for="r-pointille" style="margin:0">Trait pointillé</label></div>
+  <div class="bascule"><input type="checkbox" id="r-degrade">
+    <label for="r-degrade" style="margin:0">Dégradé du départ à l'arrivée</label></div>
+  <div class="bornes-degrade" id="choix-degrade">
+    <input type="color" id="r-debut" title="Couleur du départ">
+    <span>→</span>
+    <input type="color" id="r-fin" title="Couleur de l'arrivée">
+  </div>
+  <div class="bascule"><input type="checkbox" id="r-decalage">
+    <label for="r-decalage" style="margin:0">Séparer aller et retour</label></div>
+  <div class="bascule"><input type="checkbox" id="r-dessus">
+    <label for="r-dessus" style="margin:0">Trait au-dessus des marqueurs</label></div>
+  <button id="reinit">Réinitialiser</button>
+</div>
+<div id="carte"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-polylineoffset@1.1.1/leaflet.polylineoffset.min.js"></script>
+<script>
+const CONFIG = /*__DONNEES__*/null;
+
+/* ------------------------------------------------------------------ fonds */
+const ignUrl = (couche, format) =>
+  "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile" +
+  "&LAYER=" + couche + "&STYLE=normal&TILEMATRIXSET=PM&FORMAT=" + format +
+  "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}";
+const gsiUrl = (couche, ext) =>
+  "https://cyberjapandata.gsi.go.jp/xyz/" + couche + "/{z}/{x}/{y}." + ext;
+
+const attrIGN = '© <a href="https://www.ign.fr/">IGN</a>';
+const attrGSI = '© <a href="https://maps.gsi.go.jp/development/ichiran.html">GSI</a> (Japon)';
+const attrOSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+/* [nom affiché, zone géographique, fabrique] — seuls les fonds couvrant
+   la zone des points sont proposés dans la carte produite. */
+const CATALOGUE = [
+  ["Plan IGN", "fr", () => L.tileLayer(ignUrl("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png"),
+      {maxNativeZoom:19, maxZoom:20, attribution:attrIGN})],
+  ["Carte IGN", "fr", () => L.tileLayer(ignUrl("GEOGRAPHICALGRIDSYSTEMS.MAPS.BDUNI.J1", "image/png"),
+      {maxNativeZoom:18, maxZoom:20, attribution:attrIGN})],
+  ["Satellite IGN (France)", "fr", () => L.tileLayer(ignUrl("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg"),
+      {maxNativeZoom:19, maxZoom:20, attribution:attrIGN})],
+  ["Carte IGN 1950", "fr", () => L.tileLayer(ignUrl("GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN50.1950", "image/jpeg"),
+      {maxNativeZoom:15, maxZoom:18, attribution:attrIGN})],
+
+  ["Carte GSI (Japon)", "jp", () => L.tileLayer(gsiUrl("std", "png"),
+      {maxNativeZoom:18, maxZoom:20, attribution:attrGSI})],
+  ["Carte GSI claire", "jp", () => L.tileLayer(gsiUrl("pale", "png"),
+      {maxNativeZoom:18, maxZoom:20, attribution:attrGSI})],
+  ["Photo aérienne GSI", "jp", () => L.tileLayer(gsiUrl("seamlessphoto", "jpg"),
+      {maxNativeZoom:18, maxZoom:20, attribution:attrGSI})],
+  ["Relief GSI", "jp", () => L.tileLayer(gsiUrl("relief", "png"),
+      {maxNativeZoom:15, maxZoom:20, attribution:attrGSI})],
+
+  ["Carte du monde (Esri)", "monde", () => L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      {maxNativeZoom:19, maxZoom:20, attribution:"© Esri"})],
+  ["Satellite monde", "monde", () => L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {maxNativeZoom:19, maxZoom:20, attribution:"© Esri, Maxar, Earthstar Geographics"})],
+  ["OpenStreetMap", "monde", () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {maxZoom:19, attribution:attrOSM})],
+  ["Relief (OpenTopoMap)", "monde", () => L.tileLayer("https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+      {maxNativeZoom:17, maxZoom:20, attribution:attrOSM + ", SRTM · © OpenTopoMap (CC-BY-SA)"})],
+];
+
+const fonds = {};
+CATALOGUE.forEach(([nom, zone, fabrique]) => {
+  if (CONFIG.zones.includes(zone)) fonds[nom] = fabrique();
+});
+
+/* noms de lieux en alphabet latin : lisibles par-dessus le satellite,
+   et indispensables sur les fonds nationaux à toponymie non latine (Japon...) */
+const etiquettes = L.tileLayer(
+  "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/" +
+  "World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+  {maxNativeZoom:18, maxZoom:20, attribution:"© Esri"});
+
+/* -------------------------------------------------------------------- carte */
+const carte = L.map("carte", {
+  zoomControl: true,
+  zoomSnap: 0.25, zoomDelta: 0.5,   // cadrage plus serré sur les points
+  layers: [fonds[CONFIG.fondDefaut] || Object.values(fonds)[0]],
+});
+
+/* Réglages d'affichage : valeurs venues de la ligne de commande, puis
+   ajustables en direct dans la carte (la bonne taille dépend du zoom). */
+let courant = -1;                    // étape sélectionnée
+const STYLE_INITIAL = CONFIG.style;
+const SIGNATURE = JSON.stringify(STYLE_INITIAL);
+const TEINTES = ["#c1440e", "#0b6e4f", "#1d4e89", "#7b2d8b", "#b8860b", "#1c1b19"];
+
+function styleEnregistre(){
+  try {
+    const s = JSON.parse(localStorage.getItem("mapspoints-style") || "null");
+    // les réglages mémorisés ne priment que si la carte n'a pas été
+    // regénérée avec d'autres options en ligne de commande
+    if (s && s.signature === SIGNATURE) return s.valeurs;
+  } catch (e) { /* stockage indisponible : on garde les valeurs d'origine */ }
+  return null;
+}
+const STYLE = Object.assign({}, STYLE_INITIAL, styleEnregistre());
+
+/* pane dédié : permet de faire passer le tracé au-dessus des marqueurs */
+carte.createPane("trace");
+
+/* un segment par tronçon : ceux qui n'ont pas de route restent en pointillé
+   fin, pour qu'on voie d'un coup d'œil ce qui est un vrai itinéraire */
+/* Couleur d'un point du voyage : t = 0 au départ, 1 à l'arrivée.
+   Interpolation en teinte-saturation-luminosité entre les deux couleurs
+   choisies : le passage reste vif, là où un mélange en RVB virerait au gris. */
+const memoRvb = {};
+function versRvb(couleur){
+  if (memoRvb[couleur]) return memoRvb[couleur];
+  const sonde = document.createElement("span");   // laisse le navigateur
+  sonde.style.color = couleur;                    // résoudre « #abc », « teal »...
+  document.body.appendChild(sonde);
+  const rvb = (getComputedStyle(sonde).color.match(/[\d.]+/g) || [0, 0, 0])
+                .slice(0, 3).map(Number);
+  sonde.remove();
+  return memoRvb[couleur] = rvb;
+}
+
+function versTsl(couleur){
+  const [r, v, b] = versRvb(couleur).map(x => x / 255);
+  const max = Math.max(r, v, b), min = Math.min(r, v, b), d = max - min;
+  const l = (max + min) / 2;
+  if (!d) return [null, 0, l * 100];              // gris : teinte indéfinie
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((v - b) / d + (v < b ? 6 : 0))
+          : max === v ? (b - r) / d + 2
+                      : (r - v) / d + 4;
+  return [h * 60, s * 100, l * 100];
+}
+
+function teinte(t){
+  const a = versTsl(STYLE.degradeDebut), b = versTsl(STYLE.degradeFin);
+  const ha = a[0] === null ? b[0] : a[0];
+  const hb = b[0] === null ? a[0] : b[0];
+  if (ha === null) return `hsl(0, 0%, ${a[2] + (b[2] - a[2]) * t}%)`;
+  let ecart = hb - ha;                            // on prend le chemin le plus
+  if (ecart > 180) ecart -= 360;                  // court sur la roue des teintes
+  else if (ecart < -180) ecart += 360;
+  const h = (ha + ecart * t + 360) % 360;
+  return `hsl(${h.toFixed(1)}, ${(a[1] + (b[1] - a[1]) * t).toFixed(1)}%, `
+       + `${(a[2] + (b[2] - a[2]) * t).toFixed(1)}%)`;
+}
+const couleurEtape = i =>
+  teinte(CONFIG.points.length > 1 ? i / (CONFIG.points.length - 1) : 0);
+
+const trace = L.featureGroup();
+const segments = [];
+CONFIG.troncons.forEach((tr, i) => {
+  const ligne = L.polyline(tr.pts, {pane:"trace", opacity:.8, lineCap:"round"});
+  segments.push({ligne, i, route: tr.route});
+  ligne.addTo(trace);
+});
+if (CONFIG.tracer && CONFIG.troncons.length) trace.addTo(carte);
+
+const decalagePossible = typeof L.Polyline.prototype.setOffset === "function";
+
+/* Le plugin décale les points juste après projection, donc AVANT la
+   simplification de Leaflet : en vue large, des points espacés de 1 ou 2 px
+   décalés de 10 px produisent une boucle à chaque virage. On refait la
+   projection en simplifiant d'abord, à une tolérance liée au décalage. */
+if (decalagePossible) L.Polyline.include({
+  _projectLatlngs: function (latlngs, result, projectedBounds) {
+    if (!(latlngs.length > 0 && latlngs[0] instanceof L.LatLng)) {
+      latlngs.forEach(ll => this._projectLatlngs(ll, result, projectedBounds));
+      return;
+    }
+    let ring = latlngs.map(ll => {
+      const p = this._map.latLngToLayerPoint(ll);
+      if (projectedBounds) projectedBounds.extend(p);
+      return p;
+    });
+    const d = this.options.offset;
+    if (d) {
+      ring = L.LineUtil.simplify(ring, Math.max(this.options.smoothFactor || 1,
+                                                Math.abs(d) * 1.6));
+      ring = L.PolylineOffset.offsetPoints(ring, d);
+    }
+    result.push(ring.map(xy => L.point(xy.x, xy.y)));
+  }
+});
+
+const marqueurs = [];
+const groupe = L.featureGroup().addTo(carte);
+
+function icone(p, taille, couleur){
+  const doute = p.statut !== "ok" ? " doute" : "";
+  const pastille = taille < 20;          // trop petit pour un numéro lisible
+  return L.divIcon({
+    className: "",
+    html: `<div class="marqueur${doute}${pastille ? " pastille" : ""}"` +
+          (couleur ? ` style="background:${couleur}"` : "") + `>` +
+          (pastille ? "" : `<span>${p.n}</span>`) + `</div>`,
+    iconSize:[taille, taille],
+    iconAnchor:[taille / 2, pastille ? taille / 2 : taille * .93],
+    popupAnchor:[0, pastille ? -taille / 2 - 2 : -taille + 2],
+  });
+}
+
+function tailleEffective(){
+  if (!STYLE.taille) return 0;                       // marqueurs masqués
+  if (!STYLE.auto) return STYLE.taille;
+  const z = carte.getZoom();
+  return Math.round(Math.max(9, Math.min(STYLE.taille,
+                     STYLE.taille * (0.35 + 0.075 * (z - 5)))));
+}
+
+function appliquerStyle(){
+  const taille = tailleEffective();
+  document.documentElement.style.setProperty("--accent", STYLE.couleur);
+
+  segments.forEach(({ligne, i, route}) => {
+    ligne.setStyle({
+      color: STYLE.degrade ? teinte(i / Math.max(1, segments.length - 1))
+                           : STYLE.couleur,
+      weight: route ? STYLE.epaisseur : Math.max(1, STYLE.epaisseur - 1),
+      opacity: route ? .85 : .55,
+      // un tronçon sans route reste en pointillé fin, quel que soit le style
+      dashArray: route ? (STYLE.pointille ? "1,7" : null) : "2,6",
+    });
+    // décalage à droite du sens de marche : l'aller et le retour d'une même
+    // route se rangent alors de part et d'autre, comme deux voies
+    if (decalagePossible) ligne.setOffset(STYLE.decalage ? STYLE.epaisseur + 2 : 0);
+  });
+
+  carte.getPane("trace").style.zIndex = STYLE.dessus ? 650 : 400;
+  marqueurs.forEach((m, i) => {
+    m.setOpacity(taille ? 1 : 0);
+    if (taille) m.setIcon(icone(CONFIG.points[i], taille,
+                                STYLE.degrade ? couleurEtape(i) : STYLE.couleur));
+  });
+  document.querySelectorAll(".puce").forEach((e, i) => {
+    e.style.background = STYLE.degrade ? couleurEtape(i) : "";
+  });
+  const legende = document.getElementById("legende");
+  legende.hidden = !STYLE.degrade;
+  if (STYLE.degrade) {
+    const paliers = Array.from({length: 9}, (_, k) => teinte(k / 8));
+    document.getElementById("barre").style.background =
+      `linear-gradient(to right, ${paliers.join(", ")})`;
+  }
+  if (courant >= 0) marquerActif(courant);
+}
+
+CONFIG.points.forEach((p, i) => {
+  const m = L.marker([p.lat, p.lon], {title: p.n + ". " + p.nom,
+                                      icon: icone(p, STYLE.taille || 28,
+                                        STYLE.degrade ? couleurEtape(i) : STYLE.couleur)
+                                     }).addTo(groupe);
+
+  const lignes = [`<div class="popup-titre">${echap(p.nom)}</div>`];
+  const km = v => (v < 1 ? Math.round(v * 1000) + " m"
+                         : v.toFixed(1).replace(".", ",") + " km");
+  const meta = [p.date,
+                p.kmEtape != null
+                  ? km(p.kmEtape) + (p.minEtape ? " et " + duree(p.minEtape) : "")
+                    + (p.parRoute ? " par la route" : " à vol d'oiseau")
+                    + " depuis l'étape " + (p.n - 1)
+                  : null,
+                p.km ? km(p.km) + " depuis le départ" : null]
+                 .filter(Boolean).join(" · ");
+  if (meta) lignes.push(`<div class="popup-meta">${echap(meta)}</div>`);
+  if (p.note) lignes.push(`<div class="popup-note">${echap(p.note)}</div>`);
+  if (p.adresse) lignes.push(`<div class="popup-meta" style="margin-top:6px">${echap(p.adresse)}</div>`);
+  lignes.push(
+    `<div class="popup-liens">` +
+    `<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}">Google&nbsp;Maps</a>` +
+    `<a target="_blank" href="https://www.geoportail.gouv.fr/carte?c=${p.lon},${p.lat}&z=15">Géoportail</a>` +
+    `<a href="#" data-copie="${p.lat},${p.lon}">Copier&nbsp;coord.</a></div>`);
+  m.bindPopup(lignes.join(""));
+  m.on("popupopen", () => selectionner(i, false));
+  marqueurs.push(m);
+});
+
+carte.on("zoomend", () => { if (STYLE.auto && STYLE.taille) appliquerStyle(); });
+
+const cadrer = () => carte.fitBounds(groupe.getBounds(), {padding:[45,45]});
+cadrer();
+
+if (CONFIG.etiquettes) etiquettes.addTo(carte);
+
+L.control.layers(fonds, {"Itinéraire": trace, "Noms de lieux": etiquettes},
+                 {position:"topright"}).addTo(carte);
+L.control.scale({imperial:false, position:"bottomleft"}).addTo(carte);
+
+/* boutons personnalisés : recadrer + plein écran */
+function bouton(symbole, titre, action){
+  const c = L.control({position:"topleft"});
+  c.onAdd = () => {
+    const b = L.DomUtil.create("a", "bouton-carte");
+    b.innerHTML = symbole; b.href = "#"; b.title = titre;
+    L.DomEvent.on(b, "click", L.DomEvent.stop).on(b, "click", action);
+    return b;
+  };
+  c.addTo(carte);
+}
+bouton("⤢", "Tout afficher", cadrer);
+bouton("⛶", "Plein écran", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+});
+
+/* ------------------------------------------------------------------ panneau */
+document.getElementById("titre").textContent = CONFIG.titre;
+document.getElementById("resume").textContent =
+  CONFIG.points.length + " étapes · " + CONFIG.totalKm.toFixed(0) + " km" +
+  (CONFIG.parRoute ? " par la route" + (CONFIG.minutes ? " · " + duree(CONFIG.minutes)
+                                                         + " de conduite" : "")
+                   : " à vol d'oiseau");
+
+const liste = document.getElementById("liste");
+CONFIG.points.forEach((p, i) => {
+  if (p.kmEtape != null) {           // distance depuis l'étape précédente
+    const s = document.createElement("div");
+    s.className = "segment";
+    s.textContent = (p.kmEtape < 1 ? Math.round(p.kmEtape * 1000) + " m"
+                                   : p.kmEtape.toFixed(1).replace(".", ",") + " km")
+                  + (p.minEtape ? " · " + duree(p.minEtape) : "")
+                  + (p.parRoute === false && CONFIG.parRoute ? " (à vol d'oiseau)" : "");
+    liste.appendChild(s);
+  }
+  const el = document.createElement("div");
+  el.className = "etape" + (p.statut !== "ok" ? " doute" : "");
+  const meta = [p.date, p.note].filter(Boolean).join(" · ");
+  el.innerHTML = `<div class="puce">${p.n}</div><div>
+      <div class="nom">${echap(p.nom)}</div>
+      ${meta ? `<div class="meta">${echap(meta)}</div>` : ""}</div>`;
+  el.dataset.indice = i;
+  el.onclick = () => selectionner(i, true);
+  liste.appendChild(el);
+});
+
+function marquerActif(i){
+  document.querySelectorAll(".marqueur").forEach(e => e.classList.remove("actif"));
+  const el = marqueurs[i].getElement();
+  if (el && el.firstElementChild) el.firstElementChild.classList.add("actif");
+}
+
+function selectionner(i, ouvrirPopup){
+  courant = i;
+  document.querySelectorAll(".etape").forEach(e =>
+    e.classList.toggle("active", +e.dataset.indice === i));
+  marquerActif(i);
+  if (ouvrirPopup){
+    carte.setView(marqueurs[i].getLatLng(), Math.max(carte.getZoom(), 13), {animate:true});
+    marqueurs[i].openPopup();
+    document.getElementById("panneau").classList.remove("ouvert");
+  }
+  document.querySelector(`.etape[data-indice="${i}"]`).scrollIntoView({block:"nearest"});
+}
+
+document.getElementById("basculer").onclick = () =>
+  document.getElementById("panneau").classList.toggle("ouvert");
+
+/* ---------------------------------------------------- panneau d'affichage */
+const rTaille = document.getElementById("r-taille");
+const rEpaisseur = document.getElementById("r-epaisseur");
+const rAuto = document.getElementById("r-auto");
+const rPointille = document.getElementById("r-pointille");
+const rDessus = document.getElementById("r-dessus");
+const rDegrade = document.getElementById("r-degrade");
+const rDecalage = document.getElementById("r-decalage");
+const rDebut = document.getElementById("r-debut");
+const rFin = document.getElementById("r-fin");
+const enHex = c => "#" + versRvb(c).map(x =>
+  Math.round(x).toString(16).padStart(2, "0")).join("");
+
+TEINTES.forEach(c => {
+  const b = document.createElement("div");
+  b.className = "teinte"; b.style.background = c; b.dataset.couleur = c;
+  b.title = c;
+  b.onclick = () => { STYLE.couleur = c; rafraichir(); };
+  document.getElementById("r-couleurs").appendChild(b);
+});
+
+function rafraichir(enregistrer = true){
+  rTaille.value = STYLE.taille;
+  rEpaisseur.value = STYLE.epaisseur;
+  rAuto.checked = STYLE.auto;
+  rPointille.checked = STYLE.pointille;
+  rDessus.checked = STYLE.dessus;
+  rDegrade.checked = STYLE.degrade;
+  rDecalage.checked = STYLE.decalage;
+  rDecalage.disabled = !decalagePossible;
+  rDebut.value = enHex(STYLE.degradeDebut);
+  rFin.value = enHex(STYLE.degradeFin);
+  document.getElementById("choix-degrade").style.display =
+    STYLE.degrade ? "flex" : "none";
+  document.getElementById("v-taille").textContent =
+    STYLE.taille ? STYLE.taille + " px" : "masqués";
+  document.getElementById("v-epaisseur").textContent =
+    STYLE.epaisseur ? STYLE.epaisseur + " px" : "masqué";
+  document.querySelectorAll(".teinte").forEach(b =>
+    b.classList.toggle("choisie", b.dataset.couleur === STYLE.couleur));
+  appliquerStyle();
+  if (enregistrer) {
+    try {
+      localStorage.setItem("mapspoints-style",
+        JSON.stringify({signature: SIGNATURE, valeurs: STYLE}));
+    } catch (e) { /* navigation privée : réglages non mémorisés */ }
+  }
+}
+
+rTaille.oninput = () => { STYLE.taille = +rTaille.value; rafraichir(); };
+rEpaisseur.oninput = () => { STYLE.epaisseur = +rEpaisseur.value; rafraichir(); };
+rAuto.onchange = () => { STYLE.auto = rAuto.checked; rafraichir(); };
+rPointille.onchange = () => { STYLE.pointille = rPointille.checked; rafraichir(); };
+rDessus.onchange = () => { STYLE.dessus = rDessus.checked; rafraichir(); };
+rDegrade.onchange = () => { STYLE.degrade = rDegrade.checked; rafraichir(); };
+rDebut.oninput = () => { STYLE.degradeDebut = rDebut.value; rafraichir(); };
+rFin.oninput = () => { STYLE.degradeFin = rFin.value; rafraichir(); };
+rDecalage.onchange = () => { STYLE.decalage = rDecalage.checked; rafraichir(); };
+document.getElementById("reinit").onclick = () => {
+  Object.assign(STYLE, STYLE_INITIAL);
+  try { localStorage.removeItem("mapspoints-style"); } catch (e) {}
+  rafraichir(false);
+};
+
+bouton("⚙", "Réglages d'affichage", () =>
+  document.getElementById("reglages").classList.toggle("ouvert"));
+
+rafraichir(false);
+
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-copie]");
+  if (!a) return;
+  e.preventDefault();
+  navigator.clipboard?.writeText(a.dataset.copie);
+  a.textContent = "Copié !";
+});
+
+/* navigation clavier entre les étapes */
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "ArrowRight"){ courant = Math.min(courant + 1, marqueurs.length - 1); selectionner(courant, true); }
+  if (e.key === "ArrowUp"   || e.key === "ArrowLeft"){  courant = Math.max(courant - 1, 0); selectionner(courant, true); }
+});
+
+function duree(minutes){
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")}` : `${m} min`;
+}
+
+function echap(s){
+  return String(s).replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+</script>
+</body>
+</html>
